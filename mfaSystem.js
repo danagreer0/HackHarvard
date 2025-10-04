@@ -20,5 +20,37 @@
         resendCooldownMs: 30000,        // How long before the user can request a new code in ms
         challengeTTLSeconds: 300,       // How long the code is valid for in seconds
     };
-
+     const state = {
+        config: {...DEFAULTS},
+        isOpen: false,
+        modal: null,
+        current: {challengeId: null },
+        verifiedToken: null,
+        sumbitINProgress: false,
+        cleanup: []
+    };
+    function html(str) { const t = document.createElement('template'); t.innerHTML = str.trim(); return t.content.firstChild; }
+    function styles(){
+        if(document.getElementById('mfa-styles-v2')) return;
+        const s = document.createElement('style');
+        s.id = 'mfa-styles-v2';
+        s.textContent = `
+            .mfax-overlay {position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; z-index: 2147483000;}
+            .mfax-modeal {width: 100%; max-width: 420px; background: #ffff; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); padding: 20px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica Neue,Arial,sans-serif; color:#111; position: relative;}
+            .mfax-h{font-size: 18px; font-weight: 600; margin 0 0 8px}
+            .mfax-subh{font-size: 14px; margin: 0 0 12px; color: #555;}
+            mfax-btn{flex:1;padding:10px 12px;border:none;border-radius:8px;cursor:pointer;font-weight:600}
+            .mfax-btn-primary{background:#111;color:#fff}
+            .mfax-btn-secondary{background:#f1f1f1;color:#111}
+            .mfax-link{background:none;border:none;color:#0a66c2;text-decoration:underline;cursor:pointer;font-size:13px;padding:0}
+            .mfax-input{width:100%;font-size:20px;letter-spacing:10px;text-align:center;padding:10px;border:1px solid #ccc;border-radius:8px;outline:none}
+            .mfax-error{color:#b00020;font-size:13px;margin-top:10px;min-height:16px}
+            .mfax-meta{color:#666;font-size:12px;margin-top:10px}
+            .mfax-close{position:absolute;right:12px;top:12px;background:transparent;border:none;font-size:18px;cursor:pointer}
+            .mfax-choice{display:flex;gap:8px}
+            .mfax-choice .mfax-btn{flex:initial}
+            .mfax-hidden{display:none}
+    `;
+    document.head.appendChild(s);
+    }
 })();
