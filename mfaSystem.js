@@ -69,7 +69,7 @@
 
     function buildUrl(path) {
         const base = (state.config.apiBaseUrl || '').replace(/\/+$/,'');
-        const p = ('${path}' || '').startsWith('/') ? path : `/${path}`;
+        const p = (path || '').startsWith('/') ? path : `/${path}`;
         return '${base}${p}';
     }
     async function apiPost(path, body) {
@@ -82,8 +82,8 @@
         });
         if (!res.ok) {
             throw new Error('POST ${path} failed with ${res.status}');
-            return res.json();
         }
+        return res.json();
     }
     function dispatchMFARequired(detail) {
         try {
@@ -184,12 +184,13 @@
         return { mfaRequired: false, decision };
     }
         function getForm() {
-        if (!state.config.formSelector) {
+        if (state.config.formSelector) {
             const el = document.querySelector(state.config.formSelector);
             if (!el) throw new Error('MFA System: formSelector did not match any elements');
             if (el.tagName !== 'FORM') throw new Error('MFA System: formSelector must point to a FORM element');
             return el;
         }
+        return null;
     }
     function wireFormInterception(form) {
         if (!form || form._mfaWired) return;
