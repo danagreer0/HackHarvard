@@ -101,6 +101,26 @@
     if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
     }
 
+    function showSuccessPopup(message='Transaction complete') {
+        removeExistingOverlay();
+        const overlay = document.createElement('div');
+        overlay.id = 'mfaOverlay';
+        overlay.innerHTML = `
+            <div class="mfa-popup">
+                <h2>${message}</h2>
+                <button id="successOkBtn">OK</button>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        });
+        document.getElementById('successOkBtn').addEventListener('click', () => {
+            if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        });
+        return () => { if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay); };
+    }
+
     function showMfaPopup(methods) {
         removeExistingOverlay();
 
@@ -139,9 +159,9 @@
                 const userId = (typeof state.config.getUserId === 'function' ? state.config.getUserId() : 'guest') || 'guest';
                 const res = await apiPost('/api/verify_mfa', { userId, otp });
                 if (res.verified) {
-                    alert('Payment verified!');
                     if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
                     document.removeEventListener('keydown', onKey);
+                    showSuccessPopup('Transaction complete');
                 } else {
                     alert('Verification failed! Try again.');
                 }
@@ -275,11 +295,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!output) {
     output = document.createElement('pre');
     output.id = 'result';
-    output.style.marginTop = '12px';
-    output.style.background = '#111';
-    output.style.color = '#0f0';
-    output.style.padding = '8px';
-    output.style.overflow = 'auto';
+    // Hide the legacy green result box; keep node for compatibility
+    output.style.display = 'none';
     document.body.appendChild(output);
   }
 
@@ -326,7 +343,11 @@ document.addEventListener('DOMContentLoaded', () => {
           setOutput('MFA required — complete verification in the overlay.', evalRes.decision || evalRes);
           return; // overlay is shown by mfaSystem.js
         } else {
-          setOutput('Payment verified without MFA!', evalRes?.decision || evalRes || {});
+          // Show success popup instead of green result box
+          if (window.CheckoutMFA && typeof window.CheckoutMFA.showMfaPopup === 'function') {
+            // no-op; success path
+          }
+          showSuccessPopup('Transaction complete');
           return;
         }
       } catch (err) {
@@ -366,7 +387,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         setOutput('MFA required — check the overlay to verify.', json);
       } else {
-        setOutput('Payment verified without MFA!', json || text);
+        // Show success popup instead of green result box
+        showSuccessPopup('Transaction complete');
       }
     } catch (err) {
       if (/Failed to fetch|CORS/i.test(err.message)) {
