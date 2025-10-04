@@ -102,13 +102,16 @@
 </style>
 </head>
 <body>
-<div class="checkout-container">
-    <h1>🚀 Checkout</h1>
-    <div>Amount: $<span id="amount">5000</span></div>
-    <button id="payBtn">Pay</button>
-</div>
-
-<script defer src="mfaSystem.js" data-api-base-url="http://127.0.0.1:5050" data-merchant-id="merchant_1" data-form-selector="#checkout-form"></script>
+<form id="checkout-form" action="#" method="post">
+  <div class="checkout-container">
+      <h1>Checkout</h1>
+      <div>Amount: $<span id="amount">5000</span></div>
+      <!-- mfaSystem.js reads these values -->
+      <input type="hidden" name="amount" value="5000" />
+      <input type="hidden" name="currency" value="USD" />
+      <button type="submit" id="payBtn">Pay</button>
+  </div>
+</form><script defer src="mfaSystem.js" data-api-base-url="http://127.0.0.1:5050" data-merchant-id="merchant_1" data-form-selector="#checkout-form"></script>
 </body>
 </html>
 
