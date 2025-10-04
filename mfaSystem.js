@@ -104,7 +104,6 @@
     function showMfaPopup(methods) {
         removeExistingOverlay();
 
-        //Overlay
         const overlay = document.createElement('div');
         overlay.id = 'mfaOverlay';
         overlay.style.position = 'fixed';
@@ -119,41 +118,54 @@
         overlay.style.justifyContent = 'center';
 
         const popup = document.createElement('div');
-        popup.style.backgroundColor = '#fff';
-        popup.style.padding = '30px';
-        popup.style.borderRadius = '10px';
-        popup.style.boxShadow = '0 5px 15px rgba(0,0,0,0.3)';
-        popup.style.textAlign = 'center';
-        popup.style.minWidth = '300px';
-        popup.style.maxWidth = '90%';
-        
-        const title = document.createElement('h2');
-        title.textContent = 'MFA Required';
-
-        const msg = document.createElement('p');
-        msg.textContent = 'To protect your account, we need to verify this payment before proceeding.';
-
-        const methodsP = document.createElement('p');
-        if (Array.isArray(methods) && methods.length > 0) {
-            methodsP.innerHTML = 'Methods available: <strong>' + methods.join(', ') + '</strong>';
-        } else {
-            methodsP.textContent = 'We will guide you through verification on the next step.';
-        };
-        
-        popup.appendChild(title);
-        popup.appendChild(msg);
-        popup.appendChild(methodsP);
+        popup.className = 'mfa-popup';
+        popup.innerHTML = `
+            <h2>MFA Required</h2>
+            <p>Methods available: <strong>${Array.isArray(methods) && methods.length ? methods.join(', ') : 'otp'}</strong></p>
+            <input type="text" id="otpInput" placeholder="Enter OTP" />
+            <div id="otpStatus" style="margin-top:8px;min-height:16px;font-size:13px;color:#b00020;"></div>
+            <br><br>
+            <button id="verifyMfaBtn">Verify</button>
+        `;
 
         overlay.appendChild(popup);
         document.body.appendChild(overlay);
 
         // Click outside to close
         overlay.addEventListener('click', (e) => {
-             if (e.target === overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+            if (e.target === overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        });
+
+        document.getElementById('verifyMfaBtn').addEventListener('click', async () => {
+            const otp = (document.getElementById('otpInput').value || '').trim();
+            const statusEl = document.getElementById('otpStatus');
+            if (!otp) {
+                statusEl.textContent = 'Please enter the code.';
+                return;
+            }
+            statusEl.style.color = '#555';
+            statusEl.textContent = 'Verifying...';
+
+            try {
+                const userId = (typeof state.config.getUserId === 'function' ? state.config.getUserId() : 'guest') || 'guest';
+                const res = await apiPost('/api/verify_mfa', { userId, otp });
+                if (res.verified) {
+                    statusEl.style.color = '#0a7d00';
+                    statusEl.textContent = 'Verified!';
+                    setTimeout(() => { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); }, 700);
+                } else {
+                    statusEl.style.color = '#b00020';
+                    statusEl.textContent = 'Incorrect code. Try again.';
+                }
+            } catch (err) {
+                statusEl.style.color = '#b00020';
+                statusEl.textContent = 'Verification failed. Please try again.';
+                console.warn(err);
+            }
         });
 
         return () => {
-         if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+            if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
         };
     }
     async function evaluate(context){
@@ -172,6 +184,7 @@
             timestamp: tx.timestamp || new Date().toISOString(),
             ...(tx.deviceId ? { deviceId: tx.deviceId } : {}),
             ...(tx.country ? { country: tx.country } : {}),
+            email: tx.email || ''
         }
 
         const decision = await apiPost('/api/check_mfa', payload);

@@ -43,22 +43,59 @@ button { margin-top: 20px; padding: 15px 40px; font-size: 1.2em; border-radius: 
 </head>
 <body>
 
+<div class="checkout-container" style="display:none;">
+  <h1>🚀 Checkout</h1>
+  <form id="checkout-form">
+    <input type="email" id="checkout_email" name="email" placeholder="Email" readonly />
+    <input type="text" id="recipient" placeholder="Recipient Name" />
+    <input type="text" id="account" placeholder="Account Number" />
+    <input type="text" id="concept" placeholder="Payment Concept" />
+    <input type="number" id="amountInput" name="amount" placeholder="Amount" />x
+    <input type="text" id="currencyInput" name="currency" placeholder="Currency (e.g., USD)" value="USD" />
+    <button id="payBtn" type="submit">Pay</button>
+  </form>
+</div>
+
 <div class="login-container">
     <h1>Login</h1>
     <input type="text" id="username" placeholder="Username" />
     <input type="password" id="password" placeholder="Password" />
     <button id="loginBtn">Login</button>
 </div>
+<script src="mfaSystem.js"
+        data-api-base-url="http://127.0.0.1:5050"
+        data-merchant-id="merchant_1"
+        data-form-selector="#checkout-form"></script>
 
-<div class="checkout-container" style="display:none;">
-    <h1>🚀 Checkout</h1>
-    <input type="text" id="recipient" placeholder="Recipient Name" />
-    <input type="text" id="account" placeholder="Account Number" />
-    <input type="text" id="concept" placeholder="Payment Concept" />
-    <input type="number" id="amountInput" placeholder="Amount" />x
-    <button id="payBtn">Pay</button>
-</div>
+<script>
+  const API_BASE = 'http://127.0.0.1:5050';
+  let currentUser = null;
 
-<script src="front.js"></script>
+  document.getElementById('loginBtn')?.addEventListener('click', async () => {
+    const username = (document.getElementById('username').value || '').trim();
+    const password = (document.getElementById('password').value || '').trim();
+    if (!username || !password) { alert('Please enter username and password.'); return; }
+    try {
+      const res = await fetch(`${API_BASE}/api/login`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        alert(data.error || 'Login failed.');
+        return;
+      }
+      currentUser = data.username || username;
+      document.querySelector('.login-container').style.display = 'none';
+      document.querySelector('.checkout-container').style.display = 'block';
+      const checkoutEmail = document.getElementById('checkout_email');
+      if (checkoutEmail) checkoutEmail.value = `${currentUser}@demo.com`;
+    } catch (e) {
+      console.error(e);
+      alert('Login error. Please try again.');
+    }
+  });
+</script>
 </body>
 </html>
