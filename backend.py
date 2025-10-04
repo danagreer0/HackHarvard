@@ -9,7 +9,17 @@ import hmac
 import hashlib
 
 app = Flask(__name__)
-CORS(app)
+CORS(
+    app,
+    supports_credentials=True,
+    resources={
+        r"/api/*": {
+            "origins": ["http://127.0.0.1:8000", "http://localhost:8000"],
+            "methods": ["GET", "POST", "OPTIONS"],
+            "allow_headers": ["Content-Type", "X-MFA-Merchant"],
+        }
+    },
+)
 # Config via environment variables
 SMTP_HOST = os.getenv("SMTP_HOST")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))

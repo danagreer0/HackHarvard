@@ -106,29 +106,15 @@
 
         const overlay = document.createElement('div');
         overlay.id = 'mfaOverlay';
-        overlay.style.position = 'fixed';
-        overlay.style.top = 0;
-        overlay.style.left = 0;
-        overlay.style.width = '100%';
-        overlay.style.height = '100%';
-        overlay.style.backgroundColor = 'rgba(0,0,0,0.5)';
-        overlay.style.zIndex = 9999;
-        overlay.style.display = 'flex';
-        overlay.style.alignItems = 'center';
-        overlay.style.justifyContent = 'center';
-
-        const popup = document.createElement('div');
-        popup.className = 'mfa-popup';
-        popup.innerHTML = `
-            <h2>MFA Required</h2>
-            <p>Methods available: <strong>${Array.isArray(methods) && methods.length ? methods.join(', ') : 'otp'}</strong></p>
-            <input type="text" id="otpInput" placeholder="Enter OTP" />
-            <div id="otpStatus" style="margin-top:8px;min-height:16px;font-size:13px;color:#b00020;"></div>
-            <br><br>
-            <button id="verifyMfaBtn">Verify</button>
+        overlay.innerHTML = `
+            <div class="mfa-popup">
+                <h2>MFA Required</h2>
+                <p>Methods available: <strong>${Array.isArray(methods) && methods.length ? methods.join(', ') : 'otp'}</strong></p>
+                <input type="text" id="otpInput" placeholder="Enter OTP" />
+                <br><br>
+                <button id="verifyMfaBtn">Verify</button>
+            </div>
         `;
-
-        overlay.appendChild(popup);
         document.body.appendChild(overlay);
 
         // Click outside to close
@@ -136,36 +122,38 @@
             if (e.target === overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
         });
 
+        // Esc to close
+        const onKey = (e) => {
+            if (e.key === 'Escape') {
+                if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+                document.removeEventListener('keydown', onKey);
+            }
+        };
+        document.addEventListener('keydown', onKey);
+
         document.getElementById('verifyMfaBtn').addEventListener('click', async () => {
             const otp = (document.getElementById('otpInput').value || '').trim();
-            const statusEl = document.getElementById('otpStatus');
-            if (!otp) {
-                statusEl.textContent = 'Please enter the code.';
-                return;
-            }
-            statusEl.style.color = '#555';
-            statusEl.textContent = 'Verifying...';
+            if (!otp) { alert('Please enter the code.'); return; }
 
             try {
                 const userId = (typeof state.config.getUserId === 'function' ? state.config.getUserId() : 'guest') || 'guest';
                 const res = await apiPost('/api/verify_mfa', { userId, otp });
                 if (res.verified) {
-                    statusEl.style.color = '#0a7d00';
-                    statusEl.textContent = 'Verified!';
-                    setTimeout(() => { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); }, 700);
+                    alert('Payment verified!');
+                    if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+                    document.removeEventListener('keydown', onKey);
                 } else {
-                    statusEl.style.color = '#b00020';
-                    statusEl.textContent = 'Incorrect code. Try again.';
+                    alert('Verification failed! Try again.');
                 }
             } catch (err) {
-                statusEl.style.color = '#b00020';
-                statusEl.textContent = 'Verification failed. Please try again.';
                 console.warn(err);
+                alert('Verification failed. Please try again.');
             }
         });
 
         return () => {
             if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+            document.removeEventListener('keydown', onKey);
         };
     }
     async function evaluate(context){
