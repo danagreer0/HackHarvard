@@ -5,7 +5,13 @@ from flask_cors import CORS
 import random
 
 app = Flask(__name__)
-CORS(app)
+CORS(
+   app,
+   resources={r"/api/*": {"origins": ["http://127.0.0.1:8000", "http://localhost:8000"]}},
+   supports_credentials=True,
+   allow_headers=["Content-Type", "X-MFA-Merchant"],
+  methods=["GET", "POST", "OPTIONS"],
+)
 
 # Possible rules
 MERCHANT_RULES = {
@@ -26,12 +32,31 @@ MERCHANT_RULES = {
 
 # In-memory stores
 transaction_log = []
+
+def parse_iso8601(ts: str) -> datetime:
+    """Parse ISO8601 datetimes and accept trailing 'Z' (UTC)."""
+    if not ts:  
+        return datetime.now(timezone.utc)
+    ts = str(ts)   
+    # Map 'Z' suffix to '+00:00' for Python's fromisoformat
+    if ts.endswith('Z'):
+        ts = ts[:-1] + '+00:00'  
+    try:
+        dt = datetime.fromisoformat(ts)
+    except Exception:
+        # Fallback to now if parsing fails
+        dt = datetime.now(timezone.utc)
+    # Ensure timezone-aware
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 otp_store = {}  # Store OTPs per user
 
 # Demo OTP sender (logs to terminal)
 def send_otp_email(user_email, otp):
     print(f"DEBUG OTP for {user_email}: {otp}")
-
 
 # Rule checking
 def check_rules(tx):
@@ -102,5 +127,5 @@ def verify_mfa():
 
 
 if __name__ == '__main__':
-    app.run(port=5000, debug=True)
+    app.run(port=5050, debug=True)
 
