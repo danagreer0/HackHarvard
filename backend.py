@@ -89,15 +89,26 @@ def send_otp_email(user_email, otp):
         server.sendmail(EMAIL_FROM, [user_email], msg)
 
 # Rule checking
+def parse_ts(s: str):
+    try:
+        # Accept ISO8601 with trailing 'Z' (UTC) and without
+        return datetime.fromisoformat((s or '').replace('Z', '+00:00'))
+    except Exception:
+        try:
+            return datetime.fromisoformat(s)
+        except Exception:
+            return datetime.now(timezone.utc)
+
+
 def check_rules(tx):
     rules = MERCHANT_RULES.get(tx['merchantId'], {})
     user_id = tx['userId']
-    now = datetime.fromisoformat(tx['timestamp'])
+    now = parse_ts(tx.get('timestamp'))
 
     last_24h = [t for t in transaction_log
                 if t['userId'] == user_id
                 and t['merchantId'] == tx['merchantId']
-                and datetime.fromisoformat(t['timestamp']) > now - timedelta(days=1)]
+                and parse_ts(t['timestamp']) > now - timedelta(days=1)]
 
     count_24h = len(last_24h)
     sum_24h = sum(t['amount'] for t in last_24h)
