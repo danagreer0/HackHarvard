@@ -53,4 +53,46 @@
     `;
     document.head.appendChild(s);
     }
+        function mergeConfig(cfg) {
+        state.config = {...DEFAULTS, ...cfg};
+        if(!state.config.apiBaseUrl) throw new Error('MFA System: apiBaseUrl is required');
+        if(!state.config.merchantId) throw new Error('MFA System: merchantId is required');
+        if(!state.config.formSelector) throw new Error('MFA System: formSelector is required');
+    }
+    function getHeaders() {
+        return {
+            'Content-Type': 'application/json',
+            'X-MFA-Merchant': state.config.merchantId,
+            ...state.config.headers
+        };
+    }
+
+    function buildUrl(path) {
+        const base = (state.config.apiBaseUrl || '').replace(/\/+$/,'');
+        const p = ('${path}' || '').startsWith('/') ? path : `/${path}`;
+        return '${base}${p}';
+    }
+    async function apiPost(path, body) {
+        const res = await fetch(buildUrl(path), {
+            method: 'POST',
+            headers: getHeaders(),
+            credentials: 'include',
+            cache: 'no-store',
+            body: JSON.stringify(body || {})
+        });
+        if (!res.ok) {
+            throw new Error('POST ${path} failed with ${res.status}');
+            return res.json();
+        }
+    }
+    function dispatchMFARequired(detail) {
+        try {
+            document.dispatchEvent(new CustomEvent('checkout-mfa:required', { detail }));
+        } catch (_) {
+            if (typeof state.config.onMFARequired === 'function') {
+                try { state.config.onMFARequired(detail); } catch (_) {}
+            }
+        }
+    }
+
 })();
