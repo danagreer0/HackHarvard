@@ -4,56 +4,29 @@ from flask_cors import CORS
 import random
 
 app = Flask(__name__)
-CORS(
-   app,
-   resources={r"/api/*": {"origins": ["http://127.0.0.1:8000", "http://localhost:8000"]}},
-   supports_credentials=True,
-   allow_headers=["Content-Type", "X-MFA-Merchant"],
-  methods=["GET", "POST", "OPTIONS"],
-)
+CORS(app)
+
+# Demo users
+USERS = {
+    'alice': 'password123',
+    'bob': 'securepass'
+}
 
 # Possible rules
 MERCHANT_RULES = {
     'merchant_1': {
-        'max_tx_per_day': 10,
-        'max_amount_per_day': 1000,
         'high_value_amount': 500,
-        'max_tx_per_hour': 5,
-        'max_amount_per_tx': 800,
-        'max_amount_per_week': 5000,
         'new_device': True,
         'new_location': True,
-        'suspicious_merchant': True,
-        'tx_frequency_limit': 2,
-        'tx_amount_pattern': True,
+        'suspicious_merchant': True
     }
 }
 
 # In-memory stores
 transaction_log = []
+otp_store = {}
 
-def parse_iso8601(ts: str) -> datetime:
-    """Parse ISO8601 datetimes and accept trailing 'Z' (UTC)."""
-    if not ts:  
-        return datetime.now(timezone.utc)
-    ts = str(ts)   
-    # Map 'Z' suffix to '+00:00' for Python's fromisoformat
-    if ts.endswith('Z'):
-        ts = ts[:-1] + '+00:00'  
-    try:
-        dt = datetime.fromisoformat(ts)
-    except Exception:
-        # Fallback to now if parsing fails
-        dt = datetime.now(timezone.utc)
-    # Ensure timezone-aware
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt
-
-
-otp_store = {}  # Store OTPs per user
-
-# Demo OTP sender (logs to terminal)
+# Demo OTP sender
 def send_otp_email(user_email, otp):
     print(f"DEBUG OTP for {user_email}: {otp}")
 
@@ -74,34 +47,37 @@ def check_rules(tx):
     score = 0
     if tx['amount'] >= rules.get('high_value_amount', 500):
         score += 3
-    if count_24h >= rules.get('max_tx_per_day', 10):
-        score += 2
-    if sum_24h + tx['amount'] > rules.get('max_amount_per_day', 3000):
-        score += 2
-    if rules.get('new_device', False) and tx.get('deviceId', None):
+    if rules.get('new_device', False) and tx.get('deviceId'):
         score += 1
-    if rules.get('new_location', False) and tx.get('country', None):
+    if rules.get('new_location', False) and tx.get('country'):
         score += 1
     if rules.get('suspicious_merchant', False):
         score += 1
 
     transaction_log.append(tx)
-    print(f"Transaction amount: {tx['amount']}, Score: {score}, Require MFA: {score >= 3}")
+    print(f"Transaction: {tx}, Score: {score}, MFA Required: {score >= 3}")
     return score >= 3
 
+# Login endpoint
+@app.route('/api/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    username = data.get('username')
+    password = data.get('password')
 
-# API endpoints
+    if username in USERS and USERS[username] == password:
+        return jsonify({'success': True, 'username': username})
+    return jsonify({'success': False, 'error': 'Invalid username or password'})
+
+# Check MFA endpoint
 @app.route('/api/check_mfa', methods=['POST'])
 def check_mfa():
     tx = request.get_json()
     require_mfa = check_rules(tx)
 
     if require_mfa:
-        # Generate OTP
         otp = f"{random.randint(100000, 999999)}"
         otp_store[tx['userId']] = otp
-
-        # Log OTP to console (demo only)
         user_email = tx.get('email', 'demo@example.com')
         send_otp_email(user_email, otp)
 
@@ -110,7 +86,7 @@ def check_mfa():
         'methods': ['otp', 'webauthn'] if require_mfa else []
     })
 
-
+# Verify MFA endpoint
 @app.route('/api/verify_mfa', methods=['POST'])
 def verify_mfa():
     data = request.get_json()
@@ -119,12 +95,9 @@ def verify_mfa():
 
     correct_otp = otp_store.get(user_id)
     if correct_otp and otp_input == correct_otp:
-        del otp_store[user_id]  # OTP consumed
+        del otp_store[user_id]
         return jsonify({'verified': True})
-
     return jsonify({'verified': False})
 
-
 if __name__ == '__main__':
-    app.run(port=5050, debug=True)
-
+    app.run(port=5000, debug=True)
