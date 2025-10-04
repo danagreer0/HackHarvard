@@ -94,5 +94,65 @@
             }
         }
     }
+    function removeExistingOverlay() {
+    const existing = document.getElementById('mfaOverlay');
+    if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+    }
 
+    function showMfaPopup(methods) {
+        removeExistingOverlay();
+
+        //Overlay
+        const overlay = document.createElement('div');
+        overlay.id = 'mfaOverlay';
+        overlay.style.position = 'fixed';
+        overlay.style.top = 0;
+        overlay.style.left = 0;
+        overlay.style.width = '100%';
+        overlay.style.height = '100%';
+        overlay.style.backgroundColor = 'rgba(0,0,0,0.5)';
+        overlay.style.zIndex = 9999;
+        overlay.style.display = 'flex';
+        overlay.style.alignItems = 'center';
+        overlay.style.justifyContent = 'center';
+
+        const popup = document.createElement('div');
+        popup.style.backgroundColor = '#fff';
+        popup.style.padding = '30px';
+        popup.style.borderRadius = '10px';
+        popup.style.boxShadow = '0 5px 15px rgba(0,0,0,0.3)';
+        popup.style.textAlign = 'center';
+        popup.style.minWidth = '300px';
+        popup.style.maxWidth = '90%';
+        
+        const title = document.createElement('h2');
+        title.textContent = 'MFA Required';
+
+        const msg = document.createElement('p');
+        msg.textContent = 'To protect your account, we need to verify this payment before proceeding.';
+
+        const methodsP = document.createElement('p');
+        if (Array.isArray(methods) && methods.length > 0) {
+            methodsP.innerHTML = 'Methods available: <strong>' + methods.join(', ') + '</strong>';
+        } else {
+            methodsP.textContent = 'We will guide you through verification on the next step.';
+        };
+        
+        popup.appendChild(title);
+        popup.appendChild(msg);
+        popup.appendChild(methodsP);
+
+        overlay.appendChild(popup);
+        document.body.appendChild(overlay);
+
+        // Click outside to close
+        overlay.addEventListener('click', (e) => {
+             if (e.target === overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        });
+
+        return () => {
+         if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        };
+    }
+    
 })();
