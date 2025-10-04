@@ -57,7 +57,9 @@
         state.config = {...DEFAULTS, ...cfg};
         if(!state.config.apiBaseUrl) throw new Error('MFA System: apiBaseUrl is required');
         if(!state.config.merchantId) throw new Error('MFA System: merchantId is required');
-        if(!state.config.formSelector) throw new Error('MFA System: formSelector is required');
+        if(!state.config.formSelector) {
+            console.warn('MFA System: formSelector not provided — SDK will not intercept the form automatically.');
+        }
     }
     function getHeaders() {
         return {
@@ -192,7 +194,6 @@
         }
         return null;
     }
-    }
     function wireFormInterception(form) {
         if (!form || form._mfaWired) return;
 
@@ -263,3 +264,116 @@
        }
     })();    
 })();
+
+// --- Begin merged app.js (previously in app.js) ---
+document.addEventListener('DOMContentLoaded', () => {
+  const form = document.querySelector('#checkout-form');
+  if (!form) return;
+
+  let output = document.getElementById('result');
+  if (!output) {
+    output = document.createElement('pre');
+    output.id = 'result';
+    output.style.marginTop = '12px';
+    output.style.background = '#111';
+    output.style.color = '#0f0';
+    output.style.padding = '8px';
+    output.style.overflow = 'auto';
+    document.body.appendChild(output);
+  }
+
+  // Discover API base and merchantId from the mfaSystem.js tag, with sensible defaults
+  const mfaScript = document.querySelector('script[src*="mfaSystem.js"]');
+  const API_BASE = (mfaScript?.dataset?.apiBaseUrl || 'http://127.0.0.1:5000').replace(/\/+$/, '');
+  const MERCHANT_ID = mfaScript?.dataset?.merchantId || 'merchant_1';
+
+  const defaultHeaders = {
+    'Content-Type': 'application/json',
+    'X-MFA-Merchant': MERCHANT_ID,
+  };
+
+  function setOutput(message, details) {
+    if (details) {
+      try {
+        output.textContent = message + '\n\n' + JSON.stringify(details, null, 2);
+      } catch (_) {
+        output.textContent = message;
+      }
+    } else {
+      output.textContent = message;
+    }
+  }
+
+  form.addEventListener('submit', async (e) => {
+    // Keep the page in-place (SPA style)
+    e.preventDefault();
+
+    const data = Object.fromEntries(new FormData(form).entries());
+    const context = {
+      merchantID: MERCHANT_ID,
+      amount: Number(data.amount),
+      currency: (data.currency || 'USD').toUpperCase(),
+      email: data.email || '',
+      timestamp: new Date().toISOString(),
+    };
+
+    // Prefer the CheckoutMFA flow, which will show an overlay if needed
+    if (window.CheckoutMFA && typeof window.CheckoutMFA.evaluate === 'function') {
+      try {
+        const evalRes = await window.CheckoutMFA.evaluate(context);
+        if (evalRes && evalRes.mfaRequired) {
+          setOutput('MFA required — complete verification in the overlay.', evalRes.decision || evalRes);
+          return; // overlay is shown by mfaSystem.js
+        } else {
+          setOutput('Payment verified without MFA!', evalRes?.decision || evalRes || {});
+          return;
+        }
+      } catch (err) {
+        console.warn('CheckoutMFA.evaluate failed; falling back to direct API call.', err);
+        // fall through
+      }
+    }
+
+    // Fallback: call backend directly
+    try {
+      const res = await fetch(`${API_BASE}/api/check_mfa`, {
+        method: 'POST',
+        headers: defaultHeaders,
+        credentials: 'include',
+        cache: 'no-store',
+        body: JSON.stringify({
+          merchantId: MERCHANT_ID,
+          userId: data.email || 'guest',
+          amount: Number(data.amount),
+          currency: (data.currency || 'USD').toUpperCase(),
+          timestamp: new Date().toISOString(),
+        }),
+      });
+
+      const text = await res.text();
+      let json;
+      try { json = JSON.parse(text); } catch (_) {}
+
+      if (!res.ok) {
+        setOutput(`API error ${res.status}`, json || text);
+        return;
+      }
+
+      if (json && json.require_mfa) {
+        if (window.CheckoutMFA && typeof window.CheckoutMFA.showMfaPopup === 'function') {
+          window.CheckoutMFA.showMfaPopup(json.methods || []);
+        }
+        setOutput('MFA required — check the overlay to verify.', json);
+      } else {
+        setOutput('Payment verified without MFA!', json || text);
+      }
+    } catch (err) {
+      if (/Failed to fetch|CORS/i.test(err.message)) {
+        setOutput('Request failed (possible CORS issue). Ensure your backend at 127.0.0.1:5000 allows Access-Control-Allow-Origin: http://127.0.0.1:8000', { error: err.message });
+      } else {
+        setOutput('Request error', { error: err.message });
+      }
+    }
+  });
+});
+// --- End merged app.js ---

@@ -8,15 +8,17 @@
     <h1>Test Checkout Page</h1>
 
     <form id="checkout-form" action="#" method="post">
-        <div>Amount: $7</div>
-        <input type="hidden" name="amount" value="7" />
+        <div>Amount: $1000</div>
+        <input type="hidden" name="amount" value="1000" />
         <input type="hidden" name="currency" value="USD" />
         <label for="email">Email</label>
         <input id="email" name="email" type="email" placeholder="you@example.com" required />
         <button type="submit" id="payBtn">Pay</button>
     </form>
 
-    <!-- Script al final del body -->
-    <script async src="mfaSystem.js" data-api-base-url="http://127.0.0.1:5000" data-merchant-id="merchant_1" data-form-selector="#checkout-form"></script>
+    <pre id="result" style="margin-top:12px; background:#111; color:#0f0; padding:8px; overflow:auto;"></pre>
+
+    <!-- Scripts at end of body -->
+    <script defer src="mfaSystem.js" data-api-base-url="http://127.0.0.1:5050" data-merchant-id="merchant_1" data-form-selector="#checkout-form"></script>
 </body>
 </html>

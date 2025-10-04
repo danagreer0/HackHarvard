@@ -1,9 +1,15 @@
 from flask import Flask, request, jsonify
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)  # This allows your frontend (localhost) to talk to Flask
+CORS(
+    app,
+    resources={r"/api/*": {"origins": ["http://127.0.0.1:8000", "http://localhost:8000"]}},
+    supports_credentials=True,
+    allow_headers=["Content-Type", "X-MFA-Merchant"],
+    methods=["GET", "POST", "OPTIONS"],
+)
 
 # Possible rules
 MERCHANT_RULES = {
@@ -25,15 +31,33 @@ MERCHANT_RULES = {
 # In-memory transaction log
 transaction_log = []
 
+def parse_iso8601(ts: str) -> datetime:
+    """Parse ISO8601 datetimes and accept trailing 'Z' (UTC)."""
+    if not ts:
+        return datetime.now(timezone.utc)
+    ts = str(ts)
+    # Map 'Z' suffix to '+00:00' for Python's fromisoformat
+    if ts.endswith('Z'):
+        ts = ts[:-1] + '+00:00'
+    try:
+        dt = datetime.fromisoformat(ts)
+    except Exception:
+        # Fallback to now if parsing fails
+        dt = datetime.now(timezone.utc)
+    # Ensure timezone-aware
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
 def check_rules(tx):
     rules = MERCHANT_RULES.get(tx['merchantId'], {})
     user_id = tx['userId']
-    now = datetime.fromisoformat(tx['timestamp'])
+    now = parse_iso8601(tx.get('timestamp'))
 
     last_24h = [t for t in transaction_log
                 if t['userId'] == user_id
                 and t['merchantId'] == tx['merchantId']
-                and datetime.fromisoformat(t['timestamp']) > now - timedelta(days=1)]
+                and parse_iso8601(t['timestamp']) > now - timedelta(days=1)]
 
     count_24h = len(last_24h)
     sum_24h = sum(t['amount'] for t in last_24h)
@@ -74,4 +98,4 @@ def verify_mfa():
     return jsonify({'verified': True})
 
 if __name__ == '__main__':
-    app.run(port=5000, debug=True)
+    app.run(port=5050, debug=True)
