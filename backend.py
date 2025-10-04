@@ -24,8 +24,8 @@ LOCK_MINUTES = int(os.getenv("OTP_LOCK_MINUTES", "10"))
 
 # Demo users
 USERS = {
-    'danagreer15@gmail.com': 'password123',
-    'example@gami.com': 'securepass'
+    'alice': 'password123',
+    'bob': 'securepass'
 }
 
 # Possible rules
