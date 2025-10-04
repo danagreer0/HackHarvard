@@ -70,7 +70,7 @@
     function buildUrl(path) {
         const base = (state.config.apiBaseUrl || '').replace(/\/+$/,'');
         const p = (path || '').startsWith('/') ? path : `/${path}`;
-        return '${base}${p}';
+        return `${base}${p}`;
     }
     async function apiPost(path, body) {
         const res = await fetch(buildUrl(path), {
@@ -81,7 +81,7 @@
             body: JSON.stringify(body || {})
         });
         if (!res.ok) {
-            throw new Error('POST ${path} failed with ${res.status}');
+            throw new Error(`POST ${path} failed with ${res.status}`);
         }
         return res.json();
     }
@@ -175,12 +175,12 @@
         const decision = await apiPost('/api/check_mfa', payload);
         state.current.decision = decision;
 
-        if(decision ?.require_mfa) {
+        if (decision?.require_mfa) {
             state.current.flagged = true;
             showMfaPopup(decision.methods || [], decision);
-            dispatchMFARequired({decision, context: payload});
+            dispatchMFARequired({ decision, context: payload });
             return { mfaRequired: true, decision };
-        } 
+        }
         return { mfaRequired: false, decision };
     }
         function getForm() {
@@ -191,6 +191,7 @@
             return el;
         }
         return null;
+    }
     }
     function wireFormInterception(form) {
         if (!form || form._mfaWired) return;
@@ -246,7 +247,7 @@
         try {
             const s = document.currentScript
                  || document.querySelector('script[src*="mfaSystem.js"],script[src*="front.js"]');
-            const ds = s ?.dataset || {};
+            const ds = s?.dataset || {};
             const cfg = {
                 apiBaseUrl: ds.apiBaseUrl || '',
                 merchantId: ds.merchantId || '',
