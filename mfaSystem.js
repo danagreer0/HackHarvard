@@ -154,5 +154,33 @@
          if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
         };
     }
-    
+    async function evaluate(context){
+        const tx = context || (typeof state.config.getTransactionContext === 'function' ? state.config.getTransactionContext() : {});
+        if(!tx || typeof tx !== 'object') throw new Error('MFA System: getTransactionContext must return an object');
+        if(typeof tx.amount !== 'number' || isNaN(tx.amount) || tx.amount < 0) throw new Error('MFA System: Transaction amount is required and must be a positive number');
+        if(typeof tx.currency !== 'string' || !tx.currency.match(/^[A-Z]{3}$/)) throw new Error('MFA System: Transaction currency is required and must be a 3 letter ISO code');
+        if(typeof tx.merchantID !== 'string' || !tx.merchantID) throw new Error('MFA System: Transaction merchantID is required and must be a string');
+        if(typeof tx.email !== 'string') throw new Error('MFA System: Transaction email must be a string');
+     
+        const payload = {
+            merchantId: state.config.merchantId || tx.merchantID || '',
+            userId: (typeof state.config.getUserId === 'function' ? state.config.getUserId() : 'guest') || 'guest',
+            amount: tx.amount || 0,
+            currency: (tx.currency || 'USD').toUpperCase(),
+            timestamp: tx.timestamp || new Date().toISOString(),
+            ...(tx.deviceId ? { deviceId: tx.deviceId } : {}),
+            ...(tx.country ? { country: tx.country } : {}),
+        }
+
+        const decision = await apiPost('/api/check_mfa', payload);
+        state.current.decision = decision;
+
+        if(decision ?.require_mfa) {
+            state.current.flagged = true;
+            showMfaPopup(decision.methods || [], decision);
+            dispatchMFARequired({decision, context: payload});
+            return { mfaRequired: true, decision };
+        } 
+        return { mfaRequired: false, decision };
+    }    
 })();
