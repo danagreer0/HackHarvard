@@ -1,9 +1,11 @@
+# backend.py
 from flask import Flask, request, jsonify
 from datetime import datetime, timedelta
 from flask_cors import CORS
+import random
 
 app = Flask(__name__)
-CORS(app)  # This allows your frontend (localhost) to talk to Flask
+CORS(app)
 
 # Possible rules
 MERCHANT_RULES = {
@@ -22,9 +24,16 @@ MERCHANT_RULES = {
     }
 }
 
-# In-memory transaction log
+# In-memory stores
 transaction_log = []
+otp_store = {}  # Store OTPs per user
 
+# Demo OTP sender (logs to terminal)
+def send_otp_email(user_email, otp):
+    print(f"DEBUG OTP for {user_email}: {otp}")
+
+
+# Rule checking
 def check_rules(tx):
     rules = MERCHANT_RULES.get(tx['merchantId'], {})
     user_id = tx['userId']
@@ -53,25 +62,45 @@ def check_rules(tx):
         score += 1
 
     transaction_log.append(tx)
-
-    # Debug info
     print(f"Transaction amount: {tx['amount']}, Score: {score}, Require MFA: {score >= 3}")
-
     return score >= 3
 
+
+# API endpoints
 @app.route('/api/check_mfa', methods=['POST'])
 def check_mfa():
     tx = request.get_json()
     require_mfa = check_rules(tx)
+
+    if require_mfa:
+        # Generate OTP
+        otp = f"{random.randint(100000, 999999)}"
+        otp_store[tx['userId']] = otp
+
+        # Log OTP to console (demo only)
+        user_email = tx.get('email', 'demo@example.com')
+        send_otp_email(user_email, otp)
+
     return jsonify({
         'require_mfa': require_mfa,
         'methods': ['otp', 'webauthn'] if require_mfa else []
     })
 
+
 @app.route('/api/verify_mfa', methods=['POST'])
 def verify_mfa():
     data = request.get_json()
-    return jsonify({'verified': True})
+    user_id = data.get('userId')
+    otp_input = data.get('otp')
+
+    correct_otp = otp_store.get(user_id)
+    if correct_otp and otp_input == correct_otp:
+        del otp_store[user_id]  # OTP consumed
+        return jsonify({'verified': True})
+
+    return jsonify({'verified': False})
+
 
 if __name__ == '__main__':
     app.run(port=5000, debug=True)
+
