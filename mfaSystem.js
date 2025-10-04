@@ -182,5 +182,82 @@
             return { mfaRequired: true, decision };
         } 
         return { mfaRequired: false, decision };
-    }    
+    }
+        function getForm() {
+        if (!state.config.formSelector) {
+            const el = document.querySelector(state.config.formSelector);
+            if (!el) throw new Error('MFA System: formSelector did not match any elements');
+            if (el.tagName !== 'FORM') throw new Error('MFA System: formSelector must point to a FORM element');
+            return el;
+        }
+    }
+    function wireFormInterception(form) {
+        if (!form || form._mfaWired) return;
+
+        const handler = async (e) => {
+            if (state.current.flagged) {
+                e.preventDefault();
+                if (!document.getElementById('mfaOverlay') && state.current.decision?.require_mfa) {
+                    showMfaPopup(state.current.decision.methods || [], state.current.decision);
+                }
+                return;
+            }
+            try {
+                const result = await evaluate();
+                if (result.mfaRequired) {
+                    e.preventDefault();
+                    return;
+                }
+            } catch (err) {
+                console.warn('[CheckoutMFA] Decision failed:', err);
+            }
+
+        };
+        form.addEventListener('submit', handler, true);
+        form._mfaWired = true;
+        state.cleanup.push(() => form.removeEventListener('submit', handler, true));
+    }
+    async function init(userConfig= {}) {
+        mergeConfig(userConfig);
+        styles();
+        const form = getForm();
+        if (form){
+             wireFormInterception(form);
+        } else {
+            console.warn('[CheckoutMFA] No form found to intercept.');
+        }
+    }
+
+    // Public API
+    window.CheckoutMFA = {
+        init,
+        evaluate,
+        onMFARequired(cb){
+            state.config.onMFARequired = cb;
+        },
+        showMfaPopup,
+        get config() { return state.config; },
+        get flagged() { return !!state.current.flagged; },
+        get lastDecision() { return state.current.decision || null; },
+        version: '1.1.0-snippet'
+    };
+    (function autoInit(){
+        try {
+            const s = document.currentScript
+                 || document.querySelector('script[src*="mfaSystem.js"],script[src*="front.js"]');
+            const ds = s ?.dataset || {};
+            const cfg = {
+                apiBaseUrl: ds.apiBaseUrl || '',
+                merchantId: ds.merchantId || '',
+                formSelector: ds.formSelector || '',
+                hiddenFeildName: ds.hiddenFeildName || 'mfa_token',
+                enforceMode: ds.enforce
+            };
+            if(cfg.apiBaseUrl && cfg.merchantId) {
+                window.CheckoutMFA.init(cfg);   
+            }
+        } catch (e) {
+            console.warn('[CheckoutMFA] Auto init failed:', e);
+       }
+    })();    
 })();
