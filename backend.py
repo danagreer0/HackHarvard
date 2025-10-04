@@ -7,6 +7,7 @@ import smtplib
 import ssl
 import hmac
 import hashlib
+import secrets
 
 app = Flask(__name__)
 CORS(
@@ -55,9 +56,8 @@ otp_store = {}
 
 
 def generate_otp(digits=6):
-    start = 10 ** (digits - 1)
-    end = (10 ** digits) - 1
-    return str(random.randint(start, end))
+    n = secrets.randbelow(10**digits)  # 0 .. 10^digits - 1
+    return str(n).zfill(digits)
 
 
 def hash_otp(code: str, email: str, user_id: str, purpose: str = "mfa") -> bytes:
