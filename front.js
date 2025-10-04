@@ -1,7 +1,5 @@
-document.addEventListener('DOMContentLoaded', function() {
-    const payBtn = document.getElementById('payBtn');
-
-    payBtn.addEventListener('click', () => {
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('payBtn').addEventListener('click', () => {
         const transaction = {
             userId: 'user123',
             merchantId: 'merchant_1',
@@ -10,41 +8,45 @@ document.addEventListener('DOMContentLoaded', function() {
             timestamp: new Date().toISOString()
         };
 
-        fetch('http://127.0.0.1:5000/api/verify_mfa', {
+        console.log("Sending transaction:", transaction);
+
+        fetch('http://127.0.0.1:5000/api/check_mfa', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(transaction)
         })
         .then(res => res.json())
         .then(data => {
-            if(data.require_mfa) showMfaPopup(data.methods);
-            else alert('Payment verified without MFA!');
+            console.log("Response from backend:", data);
+            if(data.require_mfa) {
+                showMfaPopup(data.methods);
+            } else {
+                alert('Payment verified without MFA!');
+            }
         })
-        .catch(err => console.error(err));
+        .catch(err => console.error("Error calling backend:", err));
     });
 
     function showMfaPopup(methods) {
         const overlay = document.createElement('div');
         overlay.id = 'mfaOverlay';
-        overlay.style.position = 'fixed';
-        overlay.style.top = 0;
-        overlay.style.left = 0;
-        overlay.style.width = '100%';
-        overlay.style.height = '100%';
-        overlay.style.backgroundColor = 'rgba(0,0,0,0.5)';
-        overlay.style.zIndex = 9999;
-        overlay.style.display = 'flex';
-        overlay.style.alignItems = 'center';
-        overlay.style.justifyContent = 'center';
+        overlay.style = `
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 9999;
+        `;
 
         const popup = document.createElement('div');
-        popup.style.backgroundColor = '#fff';
-        popup.style.padding = '30px';
-        popup.style.borderRadius = '10px';
-        popup.style.boxShadow = '0 5px 15px rgba(0,0,0,0.3)';
-        popup.style.textAlign = 'center';
-        popup.style.minWidth = '300px';
-
+        popup.style = `
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            text-align: center;
+            min-width: 300px;
+        `;
         popup.innerHTML = `
             <h2>MFA Required</h2>
             <p>Methods available: <strong>${methods.join(', ')}</strong></p>
@@ -52,13 +54,11 @@ document.addEventListener('DOMContentLoaded', function() {
             <br><br>
             <button id="verifyMfaBtn" style="padding: 10px 20px; cursor: pointer;">Verify</button>
         `;
-
         overlay.appendChild(popup);
         document.body.appendChild(overlay);
 
         document.getElementById('verifyMfaBtn').addEventListener('click', () => {
             const otp = document.getElementById('otpInput').value;
-
             fetch('http://127.0.0.1:5000/api/verify_mfa', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
