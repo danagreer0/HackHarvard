@@ -8,6 +8,7 @@ import ssl
 import hmac
 import hashlib
 import secrets
+import base64
 
 app = Flask(__name__)
 CORS(
@@ -33,10 +34,28 @@ OTP_TTL_SECONDS = int(os.getenv("OTP_TTL_SECONDS", "600"))  # 10 minutes
 MAX_ATTEMPTS = int(os.getenv("OTP_MAX_ATTEMPTS", "5"))
 LOCK_MINUTES = int(os.getenv("OTP_LOCK_MINUTES", "10"))
 
-# Demo users
+# Password hashing helpers (PBKDF2-HMAC-SHA256)
+def hash_password(password: str) -> str:
+    salt = os.urandom(16)
+    iterations = 200_000
+    dk = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, iterations)
+    return f"pbkdf2_sha256${iterations}${base64.b64encode(salt).decode()}${base64.b64encode(dk).decode()}"
+
+def verify_password(password: str, encoded: str) -> bool:
+    try:
+        algo, iter_s, salt_b64, dk_b64 = encoded.split('$')
+        iterations = int(iter_s)
+        salt = base64.b64decode(salt_b64.encode())
+        expected = base64.b64decode(dk_b64.encode())
+        candidate = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, iterations)
+        return hmac.compare_digest(candidate, expected)
+    except Exception:
+        return False
+
+# Demo users (hashed at startup; dev only)
 USERS = {
-    'alice': 'password123',
-    'bob': 'securepass'
+    'alice': hash_password('password123'),
+    'bob': hash_password('securepass')
 }
 
 # Possible rules
@@ -134,7 +153,8 @@ def login():
     username = data.get('username')
     password = data.get('password')
 
-    if username in USERS and USERS[username] == password:
+    stored = USERS.get(username)
+    if stored and verify_password(password or '', stored):
         return jsonify({'success': True, 'username': username})
     return jsonify({'success': False, 'error': 'Invalid username or password'})
 
