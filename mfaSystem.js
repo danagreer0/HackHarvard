@@ -260,6 +260,7 @@
             state.config.onMFARequired = cb;
         },
         showMfaPopup,
+        showSuccessPopup,
         get config() { return state.config; },
         get flagged() { return !!state.current.flagged; },
         get lastDecision() { return state.current.decision || null; },
@@ -344,10 +345,9 @@ document.addEventListener('DOMContentLoaded', () => {
           return; // overlay is shown by mfaSystem.js
         } else {
           // Show success popup instead of green result box
-          if (window.CheckoutMFA && typeof window.CheckoutMFA.showMfaPopup === 'function') {
-            // no-op; success path
+          if (window.CheckoutMFA && typeof window.CheckoutMFA.showSuccessPopup === 'function') {
+            window.CheckoutMFA.showSuccessPopup('Transaction complete');
           }
-          showSuccessPopup('Transaction complete');
           return;
         }
       } catch (err) {
@@ -388,7 +388,9 @@ document.addEventListener('DOMContentLoaded', () => {
         setOutput('MFA required — check the overlay to verify.', json);
       } else {
         // Show success popup instead of green result box
-        showSuccessPopup('Transaction complete');
+        if (window.CheckoutMFA && typeof window.CheckoutMFA.showSuccessPopup === 'function') {
+          window.CheckoutMFA.showSuccessPopup('Transaction complete');
+        }
       }
     } catch (err) {
       if (/Failed to fetch|CORS/i.test(err.message)) {
