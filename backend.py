@@ -9,6 +9,11 @@ import hmac
 import hashlib
 import secrets
 import base64
+import json
+import time
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.hazmat.backends import default_backend
 
 app = Flask(__name__)
 CORS(
@@ -22,6 +27,7 @@ CORS(
         }
     },
 )
+
 # Config via environment variables
 SMTP_HOST = os.getenv("SMTP_HOST")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
@@ -33,6 +39,11 @@ OTP_SECRET = os.getenv("OTP_SECRET", "dev-change-me")
 OTP_TTL_SECONDS = int(os.getenv("OTP_TTL_SECONDS", "600"))  # 10 minutes
 MAX_ATTEMPTS = int(os.getenv("OTP_MAX_ATTEMPTS", "5"))
 LOCK_MINUTES = int(os.getenv("OTP_LOCK_MINUTES", "10"))
+
+# WebAuthn configuration
+RP_ID = os.getenv("RP_ID", "localhost")
+RP_NAME = os.getenv("RP_NAME", "HackHarvardApp")
+ORIGIN = os.getenv("ORIGIN", "http://localhost:8000")
 
 # Password hashing helpers (PBKDF2-HMAC-SHA256)
 def hash_password(password: str) -> str:
@@ -72,6 +83,8 @@ MERCHANT_RULES = {
 transaction_log = []
 # OTP store: userId -> record with secure hash and TTL
 otp_store = {}
+# WebAuthn credentials store
+webauthn_credentials = {}
 
 
 def generate_otp(digits=6):
@@ -146,6 +159,135 @@ def check_rules(tx):
     print(f"Transaction: {tx}, Score: {score}, MFA Required: {score >= 3}")
     return score >= 3
 
+# WebAuthn endpoints
+@app.route('/api/webauthn/register/start', methods=['POST'])
+def webauthn_register_start():
+    """Inicia el registro de WebAuthn"""
+    data = request.get_json()
+    user_id = data.get('userId')
+    username = data.get('username')
+    
+    if not user_id or not username:
+        return jsonify({'error': 'Missing user data'}), 400
+    
+    # Generar challenge
+    challenge = secrets.token_bytes(32)
+    
+    # Crear opciones para el cliente
+    options = {
+        'rp': {
+            'name': RP_NAME,
+            'id': RP_ID
+        },
+        'user': {
+            'id': user_id.encode('utf-8').hex(),
+            'name': username,
+            'displayName': username
+        },
+        'challenge': base64.b64encode(challenge).decode('utf-8'),
+        'pubKeyCredParams': [
+            {
+                'type': 'public-key',
+                'alg': -7  # ES256
+            }
+        ],
+        'timeout': 60000,
+        'authenticatorSelection': {
+            'authenticatorAttachment': 'platform',  # Para Touch ID/Face ID
+            'userVerification': 'required'
+        }
+    }
+    
+    # Guardar challenge temporalmente
+    webauthn_credentials[f"challenge_{user_id}"] = {
+        'challenge': challenge,
+        'timestamp': time.time()
+    }
+    
+    return jsonify(options)
+
+@app.route('/api/webauthn/register/finish', methods=['POST'])
+def webauthn_register_finish():
+    """Completa el registro de WebAuthn"""
+    data = request.get_json()
+    user_id = data.get('userId')
+    credential = data.get('credential')
+    
+    if not user_id or not credential:
+        return jsonify({'error': 'Missing data'}), 400
+    
+    # En un sistema real, aquí verificarías la firma del authenticator
+    # Para este ejemplo, aceptamos la credencial directamente
+    
+    if user_id not in webauthn_credentials:
+        webauthn_credentials[user_id] = []
+    
+    webauthn_credentials[user_id].append({
+        'id': credential.get('id'),
+        'publicKey': credential.get('response', {}).get('publicKey'),
+        'counter': 0
+    })
+    
+    # Limpiar challenge
+    webauthn_credentials.pop(f"challenge_{user_id}", None)
+    
+    return jsonify({'success': True})
+
+@app.route('/api/webauthn/auth/start', methods=['POST'])
+def webauthn_auth_start():
+    """Inicia la autenticación WebAuthn"""
+    data = request.get_json()
+    user_id = data.get('userId')
+    
+    if not user_id:
+        return jsonify({'error': 'Missing user ID'}), 400
+    
+    credentials = webauthn_credentials.get(user_id, [])
+    if not credentials:
+        return jsonify({'error': 'No credentials registered'}), 400
+    
+    # Generar challenge
+    challenge = secrets.token_bytes(32)
+    
+    options = {
+        'challenge': base64.b64encode(challenge).decode('utf-8'),
+        'timeout': 60000,
+        'rpId': RP_ID,
+        'allowCredentials': [
+            {
+                'id': cred['id'],
+                'type': 'public-key'
+            } for cred in credentials
+        ],
+        'userVerification': 'required'
+    }
+    
+    # Guardar challenge
+    webauthn_credentials[f"auth_challenge_{user_id}"] = {
+        'challenge': challenge,
+        'timestamp': time.time()
+    }
+    
+    return jsonify(options)
+
+@app.route('/api/webauthn/auth/finish', methods=['POST'])
+def webauthn_auth_finish():
+    """Completa la autenticación WebAuthn"""
+    data = request.get_json()
+    user_id = data.get('userId')
+    credential = data.get('credential')
+    
+    if not user_id or not credential:
+        return jsonify({'error': 'Missing data'}), 400
+    
+    # En un sistema real, verificarías la firma aquí
+    # Para este ejemplo, asumimos que la autenticación es exitosa
+    
+    # Limpiar challenge de autenticación
+    webauthn_credentials.pop(f"auth_challenge_{user_id}", None)
+    
+    return jsonify({'verified': True})
+
 # Login endpoint
 @app.route('/api/login', methods=['POST'])
 def login():
@@ -164,9 +306,21 @@ def check_mfa():
     tx = request.get_json() or {}
     require_mfa = check_rules(tx)
 
+    methods = []
+    has_webauthn = False
+
     if require_mfa:
         user_id = tx.get('userId')
         email = (tx.get('email') or '').strip()
+        
+        # Verificar si el usuario tiene credenciales WebAuthn registradas
+        has_webauthn = user_id in webauthn_credentials and len(webauthn_credentials[user_id]) > 0
+        
+        methods = ['otp']
+        if has_webauthn:
+            methods.append('webauthn')
+        
+        # Preparar OTP (siempre disponible como fallback)
         code = generate_otp(6)
         digest = hash_otp(code, email, user_id)
         expires_at = datetime.now(timezone.utc) + timedelta(seconds=OTP_TTL_SECONDS)
@@ -177,6 +331,7 @@ def check_mfa():
             'locked_until': None,
             'email': email,
         }
+        
         try:
             send_otp_email(email, code)
         except Exception as e:
@@ -184,7 +339,8 @@ def check_mfa():
 
     return jsonify({
         'require_mfa': require_mfa,
-        'methods': ['otp'] if require_mfa else []
+        'methods': methods if require_mfa else [],
+        'has_webauthn': has_webauthn if require_mfa else False
     })
 
 # Verify MFA endpoint

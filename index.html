@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Futuristic Checkout</title>
+<title>Futuristic Checkout with Biometric MFA</title>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&display=swap" rel="stylesheet">
 <style>
 body {
@@ -31,14 +31,123 @@ button { margin-top: 20px; padding: 15px 40px; font-size: 1.2em; border-radius: 
 #payBtn:hover { box-shadow: 0 0 40px #ff4d6d; transform: scale(1.05); }
 #loginBtn { background: linear-gradient(45deg, #ff4d6d, #00fff7); box-shadow: 0 0 20px #ff4d6d; transition: 0.3s; }
 #loginBtn:hover { box-shadow: 0 0 40px #00fff7; transform: scale(1.05); }
-#mfaOverlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); display:flex; justify-content:center; align-items:center; z-index:9999; backdrop-filter: blur(5px); }
-.mfa-popup { background:#111; border-radius:20px; padding:40px 30px; text-align:center; box-shadow:0 0 50px #00fff7; animation: pop 0.4s ease-out; }
-@keyframes pop { 0% {transform:scale(0.5);opacity:0;} 100% {transform:scale(1);opacity:1;} }
+#registerBioBtn { background: linear-gradient(45deg, #667eea, #764ba2); box-shadow: 0 0 20px #667eea; transition: 0.3s; margin-top: 10px; }
+#registerBioBtn:hover { box-shadow: 0 0 40px #764ba2; transform: scale(1.05); }
+
+/* MFA Overlay Styles */
+#mfaOverlay { 
+    position: fixed; 
+    top:0; 
+    left:0; 
+    width:100%; 
+    height:100%; 
+    background:rgba(0,0,0,0.9); 
+    display:flex; 
+    justify-content:center; 
+    align-items:center; 
+    z-index:9999; 
+    backdrop-filter: blur(5px); 
+}
+.mfa-popup { 
+    background:#111; 
+    border-radius:20px; 
+    padding:40px 30px; 
+    text-align:center; 
+    box-shadow:0 0 50px #00fff7; 
+    animation: pop 0.4s ease-out; 
+    min-width: 400px;
+    max-width: 500px;
+}
+@keyframes pop { 
+    0% {transform:scale(0.5);opacity:0;} 
+    100% {transform:scale(1);opacity:1;} 
+}
 .mfa-popup h2 { color:#00fff7; text-shadow:0 0 15px #00fff7; margin-bottom:15px; }
 .mfa-popup p { margin-bottom:25px; color:#fff; text-shadow:0 0 5px #fff; }
-#otpInput { width:80%; padding:12px; border-radius:10px; border:none; font-size:1em; margin-bottom:20px; outline:none; box-shadow:0 0 15px rgba(0,255,255,0.5); background:#222; color:#fff; }
-#verifyMfaBtn { padding:12px 30px; font-size:1.1em; border:none; border-radius:12px; background:linear-gradient(45deg,#ff4d6d,#00fff7); cursor:pointer; font-weight:bold; color:#000; box-shadow:0 0 20px #ff4d6d; transition:0.3s; }
-#verifyMfaBtn:hover { box-shadow:0 0 40px #00fff7; transform:scale(1.05); }
+
+/* MFA Methods Styles */
+.mfa-methods {
+    margin: 20px 0;
+}
+
+.mfa-method {
+    margin: 10px 0;
+}
+
+.mfa-btn {
+    width: 100%;
+    padding: 15px;
+    margin: 5px 0;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    font-family: 'Orbitron', sans-serif;
+}
+
+.mfa-btn.biometric {
+    background: linear-gradient(45deg, #667eea, #764ba2);
+    color: white;
+}
+
+.mfa-btn.email {
+    background: linear-gradient(45deg, #f093fb, #f5576c);
+    color: white;
+}
+
+.mfa-btn.cancel {
+    background: #6c757d;
+    color: white;
+}
+
+.mfa-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+.mfa-section {
+    margin: 20px 0;
+    padding: 15px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 10px;
+}
+
+#otpInput {
+    width: 200px;
+    font-size: 18px;
+    letter-spacing: 8px;
+    text-align: center;
+    padding: 10px;
+    margin-right: 10px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    background: #222;
+    color: #fff;
+}
+
+.icon {
+    font-size: 18px;
+}
+
+#verifyOtpBtn, #successOkBtn {
+    background: linear-gradient(45deg, #00fff7, #ff4d6d);
+    color: #000;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: 'Orbitron', sans-serif;
+}
+
+#verifyOtpBtn:hover, #successOkBtn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 20px #00fff7;
+}
 </style>
 </head>
 <body>
@@ -50,10 +159,11 @@ button { margin-top: 20px; padding: 15px 40px; font-size: 1.2em; border-radius: 
     <input type="text" id="recipient" placeholder="Recipient Name" />
     <input type="text" id="account" placeholder="Account Number" />
     <input type="text" id="concept" placeholder="Payment Concept" />
-    <input type="number" id="amountInput" name="amount" placeholder="Amount" min="0" />x
+    <input type="number" id="amountInput" name="amount" placeholder="Amount" min="0" />
     <input type="text" id="currencyInput" name="currency" placeholder="Currency (e.g., USD)" value="USD" />
     <button id="payBtn" type="submit">Pay</button>
   </form>
+  <button id="registerBioBtn" style="display:none;">Register Touch ID / Face ID</button>
 </div>
 
 <div class="login-container">
@@ -62,6 +172,7 @@ button { margin-top: 20px; padding: 15px 40px; font-size: 1.2em; border-radius: 
     <input type="password" id="password" placeholder="Password" />
     <button id="loginBtn">Login</button>
 </div>
+
 <script src="mfaSystem.js"
         data-api-base-url="http://127.0.0.1:5050"
         data-merchant-id="merchant_1"
@@ -71,30 +182,346 @@ button { margin-top: 20px; padding: 15px 40px; font-size: 1.2em; border-radius: 
   const API_BASE = 'http://127.0.0.1:5050';
   let currentUser = null;
 
-  document.getElementById('loginBtn')?.addEventListener('click', async () => {
-    const username = (document.getElementById('username').value || '').trim();
-    const password = (document.getElementById('password').value || '').trim();
-    if (!username || !password) { alert('Please enter username and password.'); return; }
-    try {
-      const res = await fetch(`${API_BASE}/api/login`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ username, password })
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.success) {
-        alert(data.error || 'Login failed.');
-        return;
+  // WebAuthn helper functions
+  class WebAuthnHelper {
+      static async isAvailable() {
+          return window.PublicKeyCredential && 
+                 typeof window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable === 'function';
       }
-      currentUser = data.username || username;
-      document.querySelector('.login-container').style.display = 'none';
-      document.querySelector('.checkout-container').style.display = 'block';
-      const checkoutEmail = document.getElementById('checkout_email');
-      if (checkoutEmail) checkoutEmail.value = `${currentUser}@demo.com`;
-    } catch (e) {
-      console.error(e);
-      alert('Login error. Please try again.');
-    }
+
+      static async canUseBiometrics() {
+          if (!await this.isAvailable()) return false;
+          try {
+              return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+          } catch (e) {
+              console.warn('WebAuthn not available:', e);
+              return false;
+          }
+      }
+
+      static async register(userId, username) {
+          try {
+              // Obtener opciones del servidor
+              const startResp = await fetch(`${API_BASE}/api/webauthn/register/start`, {
+                  method: 'POST',
+                  headers: {'Content-Type': 'application/json'},
+                  body: JSON.stringify({ userId, username })
+              });
+              
+              const options = await startResp.json();
+              
+              // Decodificar challenge
+              options.challenge = Uint8Array.from(atob(options.challenge), c => c.charCodeAt(0));
+              options.user.id = Uint8Array.from(options.user.id.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+              
+              // Crear credencial
+              const credential = await navigator.credentials.create({
+                  publicKey: options
+              });
+              
+              // Enviar al servidor
+              const finishResp = await fetch(`${API_BASE}/api/webauthn/register/finish`, {
+                  method: 'POST',
+                  headers: {'Content-Type': 'application/json'},
+                  body: JSON.stringify({
+                      userId,
+                      credential: {
+                          id: credential.id,
+                          type: credential.type,
+                          response: {
+                              clientDataJSON: Array.from(new Uint8Array(credential.response.clientDataJSON)),
+                              attestationObject: Array.from(new Uint8Array(credential.response.attestationObject))
+                          }
+                      }
+                  })
+              });
+              
+              return await finishResp.json();
+          } catch (error) {
+              console.error('WebAuthn registration failed:', error);
+              throw error;
+          }
+      }
+
+      static async authenticate(userId) {
+          try {
+              // Obtener opciones del servidor
+              const startResp = await fetch(`${API_BASE}/api/webauthn/auth/start`, {
+                  method: 'POST',
+                  headers: {'Content-Type': 'application/json'},
+                  body: JSON.stringify({ userId })
+              });
+              
+              const options = await startResp.json();
+              
+              // Decodificar challenge
+              options.challenge = Uint8Array.from(atob(options.challenge), c => c.charCodeAt(0));
+              options.allowCredentials = options.allowCredentials.map(cred => ({
+                  ...cred,
+                  id: Uint8Array.from(atob(cred.id), c => c.charCodeAt(0))
+              }));
+              
+              // Autenticar
+              const credential = await navigator.credentials.get({
+                  publicKey: options
+              });
+              
+              // Enviar al servidor
+              const finishResp = await fetch(`${API_BASE}/api/webauthn/auth/finish`, {
+                  method: 'POST',
+                  headers: {'Content-Type': 'application/json'},
+                  body: JSON.stringify({
+                      userId,
+                      credential: {
+                          id: credential.id,
+                          type: credential.type,
+                          response: {
+                              authenticatorData: Array.from(new Uint8Array(credential.response.authenticatorData)),
+                              clientDataJSON: Array.from(new Uint8Array(credential.response.clientDataJSON)),
+                              signature: Array.from(new Uint8Array(credential.response.signature)),
+                              userHandle: credential.response.userHandle ? 
+                                  Array.from(new Uint8Array(credential.response.userHandle)) : null
+                          }
+                      }
+                  })
+              });
+              
+              return await finishResp.json();
+          } catch (error) {
+              console.error('WebAuthn authentication failed:', error);
+              throw error;
+          }
+      }
+  }
+
+  // Función para mostrar popup MFA mejorado
+  function showMfaPopup(userId, methods, hasWebAuthn = false) {
+      const overlay = document.createElement('div');
+      overlay.id = 'mfaOverlay';
+      
+      let methodsHTML = '';
+      if (methods.includes('webauthn') && hasWebAuthn) {
+          methodsHTML += `
+              <div class="mfa-method">
+                  <button id="biometricBtn" class="mfa-btn biometric">
+                      <span class="icon">👆</span>
+                      Use Touch ID / Face ID
+                  </button>
+              </div>
+          `;
+      }
+      
+      methodsHTML += `
+          <div class="mfa-method">
+              <button id="emailOtpBtn" class="mfa-btn email">
+                  <span class="icon">✉️</span>
+                  Send Code via Email
+              </button>
+          </div>
+          <div id="otpSection" class="mfa-section" style="display: none;">
+              <input type="text" id="otpInput" placeholder="Enter 6-digit code" maxlength="6" />
+              <button id="verifyOtpBtn">Verify Code</button>
+          </div>
+      `;
+      
+      overlay.innerHTML = `
+          <div class="mfa-popup">
+              <h2>🔒 Additional Verification Required</h2>
+              <p>This transaction requires additional security verification.</p>
+              <div class="mfa-methods">
+                  ${methodsHTML}
+              </div>
+              <button id="cancelMfaBtn" class="mfa-btn cancel">Cancel</button>
+          </div>
+      `;
+      
+      document.body.appendChild(overlay);
+
+      // Biometric authentication
+      if (methods.includes('webauthn') && hasWebAuthn) {
+          document.getElementById('biometricBtn').addEventListener('click', async () => {
+              try {
+                  const result = await WebAuthnHelper.authenticate(userId);
+                  if (result.verified) {
+                      showSuccessPopup('Biometric verification successful! Transaction complete.');
+                      document.body.removeChild(overlay);
+                  } else {
+                      alert('Biometric verification failed. Please try another method.');
+                  }
+              } catch (error) {
+                  console.error('Biometric auth error:', error);
+                  alert('Biometric authentication failed. Please use email verification.');
+              }
+          });
+      }
+
+      // Email OTP flow
+      document.getElementById('emailOtpBtn').addEventListener('click', () => {
+          document.getElementById('otpSection').style.display = 'block';
+          alert('Verification code sent to your email.');
+      });
+
+      document.getElementById('verifyOtpBtn').addEventListener('click', async () => {
+          const otp = document.getElementById('otpInput').value.trim();
+          if (!otp) {
+              alert('Please enter the verification code.');
+              return;
+          }
+
+          try {
+              const res = await fetch(`${API_BASE}/api/verify_mfa`, {
+                  method: 'POST',
+                  headers: {'Content-Type': 'application/json'},
+                  body: JSON.stringify({ otp, userId })
+              });
+              
+              const data = await res.json();
+              if (data.verified) {
+                  showSuccessPopup('Email verification successful! Transaction complete.');
+                  document.body.removeChild(overlay);
+              } else {
+                  alert('Invalid verification code. Please try again.');
+              }
+          } catch (error) {
+              console.error('OTP verification error:', error);
+              alert('Verification failed. Please try again.');
+          }
+      });
+
+      // Cancel button
+      document.getElementById('cancelMfaBtn').addEventListener('click', () => {
+          document.body.removeChild(overlay);
+      });
+  }
+
+  function showSuccessPopup(message = 'Transaction complete') {
+      const overlay = document.createElement('div');
+      overlay.id = 'mfaOverlay';
+      overlay.innerHTML = `
+          <div class="mfa-popup">
+              <h2>✅ Success!</h2>
+              <p>${message}</p>
+              <button id="successOkBtn">OK</button>
+          </div>
+      `;
+      document.body.appendChild(overlay);
+      
+      document.getElementById('successOkBtn').addEventListener('click', () => {
+          document.body.removeChild(overlay);
+          // Clear form fields
+          document.getElementById('amountInput').value = '';
+          document.getElementById('recipient').value = '';
+          document.getElementById('account').value = '';
+          document.getElementById('concept').value = '';
+      });
+  }
+
+  // Función para registrar biometrics
+  async function registerBiometrics() {
+      if (!currentUser) {
+          alert('Please login first!');
+          return;
+      }
+
+      try {
+          const canUseBio = await WebAuthnHelper.canUseBiometrics();
+          if (!canUseBio) {
+              alert('Biometric authentication is not available on this device.');
+              return;
+          }
+
+          const result = await WebAuthnHelper.register(currentUser, currentUser);
+          if (result.success) {
+              alert('Biometric authentication registered successfully!');
+          } else {
+              alert('Failed to register biometric authentication.');
+          }
+      } catch (error) {
+          console.error('Biometric registration error:', error);
+          alert('Biometric registration failed. Please try again.');
+      }
+  }
+
+  document.getElementById('loginBtn')?.addEventListener('click', async () => {
+      const username = (document.getElementById('username').value || '').trim();
+      const password = (document.getElementById('password').value || '').trim();
+      if (!username || !password) { alert('Please enter username and password.'); return; }
+      try {
+          const res = await fetch(`${API_BASE}/api/login`, {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({ username, password })
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.success) {
+              alert(data.error || 'Login failed.');
+              return;
+          }
+          currentUser = data.username || username;
+          document.querySelector('.login-container').style.display = 'none';
+          document.querySelector('.checkout-container').style.display = 'block';
+          const checkoutEmail = document.getElementById('checkout_email');
+          if (checkoutEmail) checkoutEmail.value = `${currentUser}@demo.com`;
+          document.getElementById('registerBioBtn').style.display = 'block';
+      } catch (e) {
+          console.error(e);
+          alert('Login error. Please try again.');
+      }
+  });
+
+  // Registrar event listeners
+  document.getElementById('registerBioBtn')?.addEventListener('click', registerBiometrics);
+
+  // Intercept form submission
+  document.getElementById('checkout-form')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      if (!currentUser) {
+          alert('Please login first!');
+          return;
+      }
+
+      const amount = parseFloat(document.getElementById('amountInput').value);
+      const recipient = document.getElementById('recipient').value.trim();
+      const account = document.getElementById('account').value.trim();
+      const concept = document.getElementById('concept').value.trim();
+      const currency = document.getElementById('currencyInput').value.trim();
+      
+      if (!amount || !recipient || !account || !concept || !currency) {
+          alert('Please fill in all fields!');
+          return;
+      }
+
+      const transaction = {
+          userId: currentUser,
+          merchantId: 'merchant_1',
+          amount: amount,
+          recipient: recipient,
+          account: account,
+          concept: concept,
+          currency: currency,
+          deviceId: navigator.userAgent,
+          timestamp: new Date().toISOString(),
+          email: `${currentUser}@demo.com`
+      };
+
+      try {
+          const res = await fetch(`${API_BASE}/api/check_mfa`, {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify(transaction)
+          });
+          
+          const data = await res.json();
+          if (data.require_mfa) {
+              showMfaPopup(transaction.userId, data.methods, data.has_webauthn);
+          } else {
+              showSuccessPopup('Payment verified without MFA!');
+          }
+      } catch (error) {
+          console.error('Transaction error:', error);
+          alert('Transaction failed. Please try again.');
+      }
   });
 </script>
 </body>
